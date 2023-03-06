@@ -24,13 +24,11 @@ window.addEventListener("load", async () => {
   // WebContainerにファイルをマウントして、ファイルの読み取りを可能にする
   await webcontainerInstance.mount(files);
 
-  const exitCode = await installDependencies(terminal);
-  if (exitCode !== 0) {
-    throw new Error("Installation failed");
-  }
+  webcontainerInstance.on("server-ready", (port, url) => {
+    iframeEl.src = url;
+  });
 
-  // WebContainerのexpressサーバーを起動する
-  startDevServer(terminal);
+  startShell(terminal);
 });
 
 document.querySelector("#app").innerHTML = `
@@ -54,29 +52,17 @@ const textareaEl = document.querySelector("textarea");
 /** @type {HTMLTextAreaElement | null} */
 const terminalEl = document.querySelector(".terminal");
 
+/** @param {string} content */
+async function writeIndexJS(content) {
+  await webcontainerInstance.fs.writeFile("/index.js", content);
+}
+
 /**
  * @param {Terminal} terminal
  */
-async function installDependencies(terminal) {
-  const installProcess = await webcontainerInstance.spawn("npm", ["install"]);
-  // npm install の結果をコンソールに出力する
-  installProcess.output.pipeTo(
-    new WritableStream({
-      write(data) {
-        terminal.write(data);
-      },
-    })
-  );
-  return installProcess.exit;
-}
-
-async function startDevServer(terminal) {
-  const startProcess = await webcontainerInstance.spawn("npm", [
-    "run",
-    "start",
-  ]);
-
-  startProcess.output.pipeTo(
+async function startShell(terminal) {
+  const shellProcess = await webcontainerInstance.spawn("jsh");
+  shellProcess.output.pipeTo(
     new WritableStream({
       write(data) {
         terminal.write(data);
@@ -84,13 +70,9 @@ async function startDevServer(terminal) {
     })
   );
 
-  webcontainerInstance.on("server-ready", (port, url) => {
-    iframeEl.src = url;
+  const input = shellProcess.input.getWriter();
+  terminal.onData((data) => {
+    input.write(data);
   });
-}
-
-/** @param {string} content */
-
-async function writeIndexJS(content) {
-  await webcontainerInstance.fs.writeFile("/index.js", content);
+  return shellProcess;
 }
