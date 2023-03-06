@@ -24,13 +24,13 @@ window.addEventListener("load", async () => {
   // WebContainerにファイルをマウントして、ファイルの読み取りを可能にする
   await webcontainerInstance.mount(files);
 
-  const exitCode = await installDependencies();
+  const exitCode = await installDependencies(terminal);
   if (exitCode !== 0) {
     throw new Error("Installation failed");
   }
 
   // WebContainerのexpressサーバーを起動する
-  startDevServer();
+  startDevServer(terminal);
 });
 
 document.querySelector("#app").innerHTML = `
@@ -54,32 +54,35 @@ const textareaEl = document.querySelector("textarea");
 /** @type {HTMLTextAreaElement | null} */
 const terminalEl = document.querySelector(".terminal");
 
-async function installDependencies() {
+/**
+ * @param {Terminal} terminal
+ */
+async function installDependencies(terminal) {
   const installProcess = await webcontainerInstance.spawn("npm", ["install"]);
   // npm install の結果をコンソールに出力する
-  // installProcess.output.pipeTo(
-  //   new WritableStream({
-  //     write(data) {
-  //       console.log(data);
-  //     },
-  //   })
-  // );
+  installProcess.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        terminal.write(data);
+      },
+    })
+  );
   return installProcess.exit;
 }
 
-async function startDevServer() {
+async function startDevServer(terminal) {
   const startProcess = await webcontainerInstance.spawn("npm", [
     "run",
     "start",
   ]);
 
-  // startProcess.output.pipeTo(
-  //   new WritableStream({
-  //     write(data) {
-  //       console.log(data);
-  //     },
-  //   })
-  // );
+  startProcess.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        terminal.write(data);
+      },
+    })
+  );
 
   webcontainerInstance.on("server-ready", (port, url) => {
     iframeEl.src = url;
