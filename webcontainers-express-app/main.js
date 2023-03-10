@@ -29,6 +29,9 @@ window.addEventListener("load", async () => {
   });
 
   startShell(terminal);
+  await webcontainerInstance.spawn("npm", ["install"]);
+  // const res = await webcontainerInstance.spawn("node", ["request.js"]);
+  // console.log(res);
 });
 
 document.querySelector("#app").innerHTML = `
